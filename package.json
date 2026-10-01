@@ -24,7 +24,7 @@
   "type": "module",
   "main": "lib/index.js",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/*.test.mjs"
   },
   "files": [
     "lib",

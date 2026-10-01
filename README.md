@@ -262,7 +262,7 @@ review —— 不必把模型 key 放进仓库 secret。
 ## 开发与测试
 
 ```bash
-npm test          # node --test test/
+npm test          # node --test test/*.test.mjs
 ```
 
 `test/harness.mjs` 用 Node 的模块钩子（`module.registerHooks`）把
@@ -274,8 +274,12 @@ profile、不需要重启**，而且仓库里不需要提交 `node_modules`。
 （非法 kind / state / event / method）、`github_delete_repo` 的 `confirm` 护栏（并断言护栏在**任何
 请求之前**就生效）、GitHub 错误透传、以及 token 缺失时的报错文案。
 
-> `node --test test/` 会让 Node 为每个测试文件 spawn 子进程。在受限沙箱里 piped stdio 会被拒
-> （`EPERM: spawn`），此时直接跑 `node test/tools.test.mjs`——同进程、不 spawn，结果一样。
+> **必须写成通配**：`node --test test/`（目录形式）会被 Node 当成"一个测试文件"去执行并报
+> `MODULE_NOT_FOUND` —— 这一点是在真实 CI 上暴露的，本地直接跑单个文件时看不出来。用
+> `test/*.test.mjs` 则 Linux shell 会展开、Windows 交给 Node 的通配处理，两端都正确。
+>
+> 另一个坑：`node --test`（无参数）会把 `test/harness.mjs`、`test/stubs.mjs` 也当成测试文件跑，
+> 多出 2 个假通过。所以显式通配也更准。
 ## 许可
 
 MIT
