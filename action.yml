@@ -1,0 +1,134 @@
+name: 'DSH deterministic pull-request review'
+description: >-
+  Review a pull request with the deterministic rules from dsh-plugin-github, and
+  fail the step when findings reach a severity you choose. No model is involved,
+  so no model credential is needed — the workflow token is enough to read the
+  diff and post the review.
+author: 'valing1837'
+
+branding:
+  icon: 'git-pull-request'
+  color: 'purple'
+
+inputs:
+  github-token:
+    description: 'Token used to read the diff and post the review. Needs pull-requests: write.'
+    required: false
+    default: ${{ github.token }}
+  min-severity:
+    description: 'Least severe finding that becomes an inline comment: error, warning or note.'
+    required: false
+    default: 'warning'
+  max-comments:
+    description: 'Maximum inline comments to post, 1-50.'
+    required: false
+    default: '20'
+  post-review:
+    description: 'Post the review. Set to false to only report and gate.'
+    required: false
+    default: 'true'
+  fail-on:
+    description: 'Fail the step at or above this severity: error, warning, note or none.'
+    required: false
+    default: 'error'
+  title:
+    description: 'Title of the posted review body.'
+    required: false
+    default: 'Deterministic review'
+
+outputs:
+  errors:
+    description: 'Number of error findings.'
+    value: ${{ steps.review.outputs.errors }}
+  warnings:
+    description: 'Number of warning findings.'
+    value: ${{ steps.review.outputs.warnings }}
+  notes:
+    description: 'Number of note findings.'
+    value: ${{ steps.review.outputs.notes }}
+  findings:
+    description: 'The full analysis as JSON, including the review body and inline comments.'
+    value: ${{ steps.review.outputs.findings }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Fetch the pull request diff
+      id: diff
+      shell: bash
+      env:
+        TOKEN: ${{ inputs.github-token }}
+        API: ${{ github.api_url }}
+        REPO: ${{ github.repository }}
+        PR: ${{ github.event.pull_request.number }}
+      run: |
+        set -euo pipefail
+        if [ -z "${PR}" ]; then
+          echo "::error::this action must run on a pull_request event: github.event.pull_request.number is empty"
+          exit 1
+        fi
+        curl --fail --silent --show-error \
+          --header "Authorization: Bearer ${TOKEN}" \
+          --header "Accept: application/vnd.github.v3.diff" \
+          --header "X-GitHub-Api-Version: 2022-11-28" \
+          "${API}/repos/${REPO}/pulls/${PR}" \
+          --output "${RUNNER_TEMP}/dsh-pr.diff"
+        echo "pulled ${REPO}#${PR} diff: $(wc -c < "${RUNNER_TEMP}/dsh-pr.diff") bytes"
+
+    - name: Analyse and publish
+      id: review
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_API_URL: ${{ github.api_url }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        MIN_SEVERITY: ${{ inputs.min-severity }}
+        MAX_COMMENTS: ${{ inputs.max-comments }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        POST_REVIEW: ${{ inputs.post-review }}
+        TITLE: ${{ inputs.title }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -uo pipefail
+
+        args=( "${RUNNER_TEMP}/dsh-pr.diff"
+               --json
+               --min-severity "${MIN_SEVERITY}"
+               --max-comments "${MAX_COMMENTS}"
+               --fail-on "${FAIL_ON}"
+               --title "${TITLE}" )
+        if [ "${POST_REVIEW}" = "true" ]; then args+=( --post ); fi
+
+        # The CLI keeps stdout machine-readable under --json and sends progress to
+        # stderr, so the exit code and the JSON can both be captured cleanly.
+        node "${ACTION_PATH}/bin/review.mjs" "${args[@]}" > "${RUNNER_TEMP}/dsh-review.json"
+        code=$?
+
+        node -e '
+          const fs = require("node:fs");
+          const analysis = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + "/dsh-review.json", "utf8"));
+          const lines = [
+            "errors=" + analysis.counts.error,
+            "warnings=" + analysis.counts.warning,
+            "notes=" + analysis.counts.note,
+            "findings<<DSH_FINDINGS_EOF",
+            JSON.stringify(analysis),
+            "DSH_FINDINGS_EOF",
+            "",
+          ];
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, lines.join("\n"));
+          console.log(`${analysis.files} file(s), +${analysis.additions} -${analysis.deletions}`);
+          console.log(`${analysis.counts.error} error / ${analysis.counts.warning} warning / ${analysis.counts.note} note`);
+          for (const finding of analysis.findings.slice(0, 20)) {
+            const where = finding.path === null ? "" : ` ${finding.path}${finding.line === null ? "" : ":" + finding.line}`;
+            console.log(`  [${finding.severity}] ${finding.rule}${where}`);
+          }
+        '
+
+        if [ "${code}" -eq 1 ]; then
+          echo "::error::deterministic review found findings at or above '${FAIL_ON}'"
+        elif [ "${code}" -ne 0 ]; then
+          echo "::error::the review CLI exited with ${code}"
+        fi
+        exit "${code}"

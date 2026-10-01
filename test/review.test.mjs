@@ -129,6 +129,33 @@ test('a clean diff produces no findings', () => {
   assert.deepEqual(analysis.counts, { error: 0, warning: 0, note: 0 })
 })
 
+test('importing child_process is not treated as dynamic evaluation', () => {
+  // Regression: this exact line in this plugin's own diff was flagged before
+  // the rule was narrowed to real evaluation constructs.
+  const diff = [
+    'diff --git a/lib/x.js b/lib/x.js',
+    '--- a/lib/x.js',
+    '+++ b/lib/x.js',
+    '@@ -1,1 +1,3 @@',
+    ' // header',
+    "+import { execFile } from 'node:child_process'",
+    '+const out = await execFile("git", ["status"])',
+  ].join('\n')
+  assert.deepEqual(analyseDiff(diff).findings, [])
+
+  const evaluated = [
+    'diff --git a/lib/y.js b/lib/y.js',
+    '--- a/lib/y.js',
+    '+++ b/lib/y.js',
+    '@@ -1,1 +1,2 @@',
+    ' // header',
+    '+const result = eval(userInput)',
+  ].join('\n')
+  const findings = analyseDiff(evaluated).findings
+  assert.equal(findings.length, 1)
+  assert.equal(findings[0].rule, 'dangerous-eval')
+})
+
 test('a large pull request is flagged once, ahead of the per-line findings', () => {
   const added = Array.from({ length: 60 }, (_, index) => `+line ${index}`)
   const diff = [

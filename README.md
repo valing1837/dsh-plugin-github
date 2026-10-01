@@ -140,7 +140,7 @@ refs:
 | `focused-test` | error | 提交了 `.only(` / `fit(` / `@pytest.mark.only`，会静默跳过其余用例 |
 | `sensitive-file` | error | 改动 `.env` / `id_rsa` / `*.pem` / `credentials.*` 这类文件 |
 | `debug-leftover` | warning | 留下 `console.log` / `debugger` / `binding.pry` / `fmt.Print` |
-| `dangerous-eval` | warning | 新增 `eval(` / `new Function(` / `child_process` |
+| `dangerous-eval` | warning | 新增 `eval(` / `new Function(`（**不含** `child_process` —— 导入它是正常 Node 用法） |
 | `destructive-shell` | warning | 新增 `rm -rf` / `git push --force` / `git reset --hard` |
 | `todo-added` | note | 新增 `TODO` / `FIXME` / `XXX` / `HACK` |
 | `trailing-whitespace` | note | 新增行有行尾空白 |
@@ -199,6 +199,47 @@ lib/index.js        插件本体（单文件，无用例依赖）
 install.ps1         幂等安装脚本
 ```
 
+## 独立 CLI 与 GitHub Action
+
+`lib/review.js` 是纯模块，所以同一套规则也能脱离 DSH 直接跑：
+
+```bash
+node bin/review.mjs pr.diff                      # 人类可读报告，有 error 则退出码 1
+node bin/review.mjs pr.diff --json               # stdout 是纯 JSON（进度改走 stderr）
+node bin/review.mjs pr.diff --fail-on note       # 收紧到 note 也失败
+node bin/review.mjs pr.diff --post --pr 42       # 发布 review（需 GITHUB_TOKEN / GITHUB_REPOSITORY）
+```
+
+`--post` 是**幂等**的：先列出现有 review，只要有一条的正文带着标记
+`<!-- dsh-plugin-github:review -->` 就跳过，不重复发；`--force` 可覆盖。
+
+### 用成 Action
+
+```yaml
+name: review
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write        # 发 review 需要
+jobs:
+  deterministic-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: valing1837/dsh-plugin-github@main
+        with:
+          min-severity: warning
+          fail-on: error        # 达到 error 就让这一步失败
+```
+
+输入：`github-token`（默认 `${{ github.token }}`）、`min-severity`、`max-comments`、
+`post-review`、`fail-on`、`title`。
+输出：`errors` / `warnings` / `notes` / `findings`（完整分析 JSON）。
+
+**它不需要任何模型凭证。** 规则是确定性的，所以 CI 里只要有自带的 `GITHUB_TOKEN` 就能读 diff、发
+review —— 不必把模型 key 放进仓库 secret。
+
+> 这个 Action 目前**只在本地验证过 CLI 部分**（解析、规则、退出码、幂等、请求形状共 71 个用例），
+> 没有在真实 GitHub runner 上跑过。首次使用请在测试仓库上试。
 ## 开发与测试
 
 ```bash

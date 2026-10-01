@@ -16,6 +16,8 @@
   },
   "files": [
     "lib",
+    "bin",
+    "action.yml",
     "cordis.patch.yml"
   ],
   "peerDependencies": {
