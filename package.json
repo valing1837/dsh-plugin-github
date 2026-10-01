@@ -11,6 +11,9 @@
   ],
   "type": "module",
   "main": "lib/index.js",
+  "scripts": {
+    "test": "node --test test/"
+  },
   "files": [
     "lib",
     "cordis.patch.yml"

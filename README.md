@@ -130,6 +130,23 @@ lib/index.js        插件本体（单文件，无用例依赖）
 install.ps1         幂等安装脚本
 ```
 
+## 开发与测试
+
+```bash
+npm test          # node --test test/
+```
+
+`test/harness.mjs` 用 Node 的模块钩子（`module.registerHooks`）把
+`@deepseek-ai/schemastery`、`@deepseek-ai/dsh-tools`、`@deepseek-ai/dsh-credentials`
+三个只在 DSH 安装里存在的包替换成桩，并 mock 全局 `fetch`。所以整套测试**不碰网络、不碰 DSH
+profile、不需要重启**，而且仓库里不需要提交 `node_modules`。
+
+24 条用例覆盖：工具面完整性、每个新工具的 URL / HTTP 方法 / 请求体形状、参数校验
+（非法 kind / state / event / method）、`github_delete_repo` 的 `confirm` 护栏（并断言护栏在**任何
+请求之前**就生效）、GitHub 错误透传、以及 token 缺失时的报错文案。
+
+> `node --test test/` 会让 Node 为每个测试文件 spawn 子进程。在受限沙箱里 piped stdio 会被拒
+> （`EPERM: spawn`），此时直接跑 `node test/tools.test.mjs`——同进程、不 spawn，结果一样。
 ## 许可
 
 MIT
