@@ -1,5 +1,9 @@
 # dsh-plugin-github
 
+[![ci](https://github.com/valing1837/dsh-plugin-github/actions/workflows/ci.yml/badge.svg)](https://github.com/valing1837/dsh-plugin-github/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![dsh](https://img.shields.io/badge/DSH-0.2.0--rc.2-purple.svg)](https://github.com/deepseek-ai/deepseek-harness)
+
 给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）用的 **host-only** GitHub 集成插件：
 建仓库、推代码、读 diff、提审查、合并 PR —— 全部作为 DSH 的 agent 工具暴露。
 
@@ -16,6 +20,8 @@ module` → web boot 崩溃）。本插件只注册主机侧工具，从结构�
 ## 安装
 
 ```powershell
+git clone https://github.com/valing1837/dsh-plugin-github
+cd dsh-plugin-github
 powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
@@ -153,6 +159,19 @@ review 形状的行内评论**（只能锚定到具体新增行的发现才进 i
 `unanchoredFindings`，不会被丢掉）。
 
 解析器的计数已与 GitHub 自己的统计**逐提交对账**（files / additions / deletions 全一致）。
+## 验证状态
+
+| 项 | 证据 |
+|---|---|
+| 71 个用例 | `npm test`，CI 在 Node 22.19 与 24 上各跑一遍 |
+| diff 解析正确性 | 与 GitHub 自己的 `stats` 逐提交对账，4 个真实提交的 files/additions/deletions 全一致 |
+| 真实 API | `/search/*`、`/commits/{ref}/check-runs`、`/status`、`/branches`、`/compare`、`/releases`、`POST /statuses`（201）全部实测 |
+| 启动安全 | 隔离 profile 探针启动多次，29 个工具注册、stderr 0 行 |
+| 审批门禁 | 会话日志里 `approval/asked` 记录了 `github_push` 与 `github_set_status`，理由是 `... will change state on GitHub: <目标>`，结果为 `allowed-once` |
+| Action 脚本 | 用 Git Bash 对真实 PR 执行两个 `run:` 脚本：护栏 exit 1、抓到 85 KB diff、分析 10 文件 +762/−301、`GITHUB_OUTPUT` 正确、token 未泄露 |
+| 行内评论 | 真实提交过一次带内联评论的 review（id 5376357340） |
+
+尚未在 GitHub 自己的 runner 上跑过 Action —— `self-review` 工作流会在本仓库的下一个 PR 上完成这件事。
 ## 安全设计
 
 **Token 不落盘到仓库。** `github_push` 用一次性带 token 的推送 URL，本地留下的 `origin` 是无凭证的

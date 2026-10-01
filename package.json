@@ -7,8 +7,20 @@
     "dsh",
     "dsh-plugin",
     "deepseek-harness",
-    "github"
+    "github",
+    "pull-request",
+    "code-review",
+    "ci"
   ],
+  "author": "valing1837",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/valing1837/dsh-plugin-github.git"
+  },
+  "bugs": {
+    "url": "https://github.com/valing1837/dsh-plugin-github/issues"
+  },
+  "homepage": "https://github.com/valing1837/dsh-plugin-github#readme",
   "type": "module",
   "main": "lib/index.js",
   "scripts": {

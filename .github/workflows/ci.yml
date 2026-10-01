@@ -1,0 +1,47 @@
+# Runs the test suite on every push and pull request.
+#
+# `npm test` is `node --test test/`. The suite needs no install step: it stubs
+# the three DSH-only packages with module hooks and mocks fetch, so there is no
+# dependency to download and no network access.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both ranges declared in package.json#engines.
+        node: ['22.19.0', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # `node --test test/` runs each file in its own process on the runner,
+      # which is the documented way to run the suite.
+      - run: npm test
+
+      - name: Analyse a diff through the standalone CLI
+        run: |
+          printf 'diff --git a/a.js b/a.js\n--- a/a.js\n+++ b/a.js\n@@ -1 +1,2 @@\n a\n+console.log("x")\n' > /tmp/probe.diff
+          node bin/review.mjs /tmp/probe.diff --json --fail-on none > /tmp/analysis.json
+          node -e '
+            const a = require("node:fs").readFileSync("/tmp/analysis.json", "utf8");
+            const parsed = JSON.parse(a);
+            if (parsed.counts.warning !== 1) {
+              console.error("expected exactly one warning, got", JSON.stringify(parsed.counts));
+              process.exit(1);
+            }
+            console.log("CLI OK:", JSON.stringify(parsed.counts));
+          '

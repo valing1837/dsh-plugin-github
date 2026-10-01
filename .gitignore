@@ -1,0 +1,17 @@
+# Dependencies are never needed at runtime: the plugin resolves its peers from
+# the DSH installation, and the tests stub them. Kept for local experiments.
+node_modules/
+
+# Logs and editor/OS noise
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Scratch output from running the review CLI by hand
+*.diff
+dsh-review.json
+gh_output.txt
