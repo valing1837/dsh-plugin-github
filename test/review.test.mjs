@@ -28,7 +28,7 @@ const DIFF = [
   '@@ -1,3 +1,6 @@',
   ' const x = 1',
   '+console.log("debug")',
-  '+const apiKey = "sk-abcdefghijklmnopqrstuvwx"',
+  '+const apiKey = "sk-AAAAAAAAAAAAAAAAAAAAAAAA"',
   ' const y = 2',
   '+// TODO: remove this',
   'diff --git a/.env b/.env',

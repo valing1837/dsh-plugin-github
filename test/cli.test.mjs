@@ -23,7 +23,7 @@ const DIFF = [
   '+++ b/src/a.js',
   '@@ -1,2 +1,4 @@',
   ' const a = 1',
-  '+const apiKey = "sk-abcdefghijklmnopqrstuvwx"',
+  '+const apiKey = "sk-AAAAAAAAAAAAAAAAAAAAAAAA"',
   '+console.log("debug")',
   '+// TODO: tidy',
 ].join('\n')
