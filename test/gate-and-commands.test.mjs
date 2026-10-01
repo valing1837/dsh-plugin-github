@@ -98,7 +98,7 @@ test('the command is registered and the plugin still loads without the runtime',
 
   // No command service composed: every tool must still register.
   const without = await loadPlugin()
-  assert.equal(without.tools.size, 28)
+  assert.equal(without.tools.size, 29)
 })
 
 test('/github with no argument reports status, including the gate state', async () => {
@@ -250,4 +250,27 @@ test('/github rejects an unknown subcommand and lists the valid ones', async () 
   assert.equal(result.kind, 'error')
   assert.match(result.text, /unknown subcommand "frobnicate"/)
   assert.match(result.text, /status, whoami, repo/)
+})
+
+test('/github review analyses a pull request diff', async () => {
+  const diff = [
+    'diff --git a/src/a.js b/src/a.js',
+    '--- a/src/a.js',
+    '+++ b/src/a.js',
+    '@@ -1,1 +1,2 @@',
+    ' const a = 1',
+    '+console.log("debug")',
+  ].join('\n')
+  const calls = mockFetch([['/pulls/9', { body: diff }]])
+  const { handler } = await withCommands()
+
+  assert.match((await handler({ rawInput: 'review o/r', signal: signal() })).text, /usage: \/github review/)
+  assert.equal(calls.length, 0, 'the usage error must not reach the network')
+
+  const result = await handler({ rawInput: 'review o/r 9', signal: signal() })
+  assert.equal(result.kind, 'success')
+  assert.match(result.text, /o\/r#9/)
+  assert.match(result.text, /1 file\(s\) · \+1 −0/)
+  assert.match(result.text, /\[warning\] debug-leftover src\/a\.js:2/)
+  assert.equal(calls[0].headers.accept, 'application/vnd.github.v3.diff')
 })

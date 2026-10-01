@@ -87,6 +87,7 @@ refs:
 | `github_delete_file` | 通过 contents API 删文件 |
 | `github_list_releases` | 列 release |
 | `github_create_release` | 发版（tag 不存在时自动创建） |
+| `github_analyze_pull` | 对 PR diff 跑确定性审查规则，返回发现 + 可发布的 review body + 行内评论（只读） |
 
 ## 斜杠命令
 
@@ -98,6 +99,7 @@ refs:
 /github repo <owner>/<name>             仓库概要
 /github pr <owner>/<name> <n>           PR 概要
 /github checks <owner>/<name> <ref>     CI 状态（列出不是绿色的 run）
+/github review <owner>/<name> <n>     对 PR 跑确定性审查
 /github search <query>                  搜索 issue / PR
 ```
 
@@ -122,6 +124,35 @@ refs:
 **不在门禁内**的只有 `github_clone`：它只从 GitHub 读，往本地写什么由文件沙箱管辖，不是 GitHub 写操作。
 
 嫌烦就把 `approveWrites` 设为 `false`，监听器根本不会注册。
+## 确定性审查
+
+`lib/review.js` 是个**纯函数模块**：输入 unified diff，输出发现。没有网络、没有时钟、没有随机数 ——
+这是它能被测试、也能将来原样跑在 composite action 里的原因。
+
+它**刻意不做模型调用**。每一条发现都必须仅凭 diff 就能站得住脚，因为在别人 PR 上发言不该取决于
+采样模型的心情；需要判断力的部分留给调用方。
+
+| 规则 | 严重度 | 触发条件 |
+|---|---|---|
+| `secret-literal` | error | 新增代码里出现形如 `apiKey = "..."` 的凭据字面量 |
+| `known-token-prefix` | error | 出现 `ghp_` / `github_pat_` / `sk-` / `AKIA…` / `xox…` 等真实 token 前缀 |
+| `conflict-marker` | error | 提交了解析冲突标记 `<<<<<<<` |
+| `focused-test` | error | 提交了 `.only(` / `fit(` / `@pytest.mark.only`，会静默跳过其余用例 |
+| `sensitive-file` | error | 改动 `.env` / `id_rsa` / `*.pem` / `credentials.*` 这类文件 |
+| `debug-leftover` | warning | 留下 `console.log` / `debugger` / `binding.pry` / `fmt.Print` |
+| `dangerous-eval` | warning | 新增 `eval(` / `new Function(` / `child_process` |
+| `destructive-shell` | warning | 新增 `rm -rf` / `git push --force` / `git reset --hard` |
+| `todo-added` | note | 新增 `TODO` / `FIXME` / `XXX` / `HACK` |
+| `trailing-whitespace` | note | 新增行有行尾空白 |
+| `lockfile-only` | note | 改了 lockfile，提醒确认 manifest 也改了 |
+| `large-change` | note | 改动行数超过 `largeChangeLines`（默认 800） |
+
+输出三样东西：**发现列表**、**可直接发布的 review body**（开头带稳定标记
+`<!-- dsh-plugin-github:review -->`，调用方靠它在重复运行时认出自己的评论）、以及**GitHub
+review 形状的行内评论**（只能锚定到具体新增行的发现才进 inline，文件级和 PR 级的另列在
+`unanchoredFindings`，不会被丢掉）。
+
+解析器的计数已与 GitHub 自己的统计**逐提交对账**（files / additions / deletions 全一致）。
 ## 安全设计
 
 **Token 不落盘到仓库。** `github_push` 用一次性带 token 的推送 URL，本地留下的 `origin` 是无凭证的
@@ -152,6 +183,9 @@ refs:
 | `defaultOwner` | — | 省略 `owner` 时假定的用户/组织 |
 | `userAgent` | `dsh-plugin-github` | 请求头 |
 | `approveWrites` | `true` | 是否对写操作走人工审批（`ask`，无应答方则拒绝） |
+| `reviewMinSeverity` | `warning` | 成为行内评论的最低严重度：error / warning / note |
+| `reviewMaxComments` | `20` | `github_analyze_pull` 产出的行内评论上限（≤50） |
+| `largeChangeLines` | `800` | 改动行数超过它就把 PR 标为 large |
 
 `sslBackend` 默认 `openssl` 是有意的：Windows 证书库在受限宿主里可能取不到，改用 OpenSSL 可绕开
 （实测沙箱内 `schannel` 会报 `SEC_E_NO_CREDENTIALS`，而 OpenSSL 正常）。

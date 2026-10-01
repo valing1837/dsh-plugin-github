@@ -24,7 +24,7 @@ test.afterEach(() => unmockFetch())
 
 test('registers the whole tool surface', async () => {
   const { tools } = await loadPlugin()
-  assert.equal(tools.size, 28)
+  assert.equal(tools.size, 29)
   for (const name of [
     'github_status',
     'github_create_pull',
@@ -36,6 +36,7 @@ test('registers the whole tool surface', async () => {
     'github_put_file',
     'github_delete_file',
     'github_create_release',
+    'github_analyze_pull',
   ]) {
     assert.ok(tools.has(name), `missing tool ${name}`)
   }
