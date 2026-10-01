@@ -88,6 +88,40 @@ refs:
 | `github_list_releases` | 列 release |
 | `github_create_release` | 发版（tag 不存在时自动创建） |
 
+## 斜杠命令
+
+`/github` 提供不经过模型轮次的直接查询：
+
+```
+/github status                          token 来源、apiBase、门禁状态
+/github whoami                          当前账号
+/github repo <owner>/<name>             仓库概要
+/github pr <owner>/<name> <n>           PR 概要
+/github checks <owner>/<name> <ref>     CI 状态（列出不是绿色的 run）
+/github search <query>                  搜索 issue / PR
+```
+
+实现上刻意**不注入** `commands`，而是用 `ctx.get('commands')` 探测：没组合命令运行时的 profile
+也应该拿到全部 28 个工具，不能因为这一个接缝就整体加载失败。
+
+## 写操作审批门禁
+
+`approveWrites`（默认 `true`）开启时，插件注册一个 `tools/pre-execute` waterfall 监听器，对下面
+14 个会改变 GitHub 状态的工具返回：
+
+```js
+{ kind: 'ask', reason: 'github_delete_repo will change state on GitHub: owner/repo' }
+```
+
+**门禁本身不调用审批服务** —— 运行时收到 `ask` 后会自己经 `ctx.approval` 派发，只有
+`allowed-once` 才继续；没有应答方时**失败关闭**（拒绝），不是放行。
+
+被门禁拦的：`create_repo` `delete_repo` `push` `create_pull` `update_pull` `review_pull`
+`merge_pull` `create_issue` `update_issue` `comment` `put_file` `delete_file` `create_release` `set_status`
+
+**不在门禁内**的只有 `github_clone`：它只从 GitHub 读，往本地写什么由文件沙箱管辖，不是 GitHub 写操作。
+
+嫌烦就把 `approveWrites` 设为 `false`，监听器根本不会注册。
 ## 安全设计
 
 **Token 不落盘到仓库。** `github_push` 用一次性带 token 的推送 URL，本地留下的 `origin` 是无凭证的
@@ -117,6 +151,7 @@ refs:
 | `authorName` / `authorEmail` | `DeepSeek Harness` / `dsh@localhost` | 仅在仓库无身份时使用 |
 | `defaultOwner` | — | 省略 `owner` 时假定的用户/组织 |
 | `userAgent` | `dsh-plugin-github` | 请求头 |
+| `approveWrites` | `true` | 是否对写操作走人工审批（`ask`，无应答方则拒绝） |
 
 `sslBackend` 默认 `openssl` 是有意的：Windows 证书库在受限宿主里可能取不到，改用 OpenSSL 可绕开
 （实测沙箱内 `schannel` 会报 `SEC_E_NO_CREDENTIALS`，而 OpenSSL 正常）。

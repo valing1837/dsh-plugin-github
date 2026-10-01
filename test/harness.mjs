@@ -1,7 +1,7 @@
 /**
- * Stand-in for the network and for the DSH context, so every tool can be
- * exercised with plain `node --test test/` — no DSH profile, no restart, and
- * no real GitHub traffic.
+ * Stand-in for the network and for the DSH context, so every tool, the
+ * write-approval gate and the human command can be exercised with plain
+ * `node --test test/` — no DSH profile, no restart, and no real GitHub traffic.
  *
  * @module test/harness
  */
@@ -52,19 +52,37 @@ export function unmockFetch() {
   delete globalThis.fetch
 }
 
+/** A `ctx.commands` stand-in that records registrations. */
+export function fakeCommands() {
+  const registered = []
+  return {
+    registered,
+    register(definition) {
+      registered.push(definition)
+      return () => {}
+    },
+  }
+}
+
 /**
- * Import the plugin and run its `apply` against a captured tool registry.
+ * Import the plugin and run its `apply` against a captured context.
  *
  * @param overrides - Config overrides; a literal token is supplied by default.
- * @returns The registered tools, the stub context and the resolved config.
+ * @param services - Extra services `ctx.get(name)` should resolve.
+ * @returns Tools, event listeners, the context and the resolved config.
  */
-export async function loadPlugin(overrides = {}) {
+export async function loadPlugin(overrides = {}, services = new Map()) {
   const module = await import('../lib/index.js')
   const tools = new Map()
-  const services = new Map()
+  const listeners = new Map()
 
   const ctx = {
     get: (name) => services.get(name),
+    on(event, handler) {
+      if (!listeners.has(event)) listeners.set(event, [])
+      listeners.get(event).push(handler)
+      return () => {}
+    },
     tools: { register: (definition) => tools.set(definition.name, definition) },
   }
 
@@ -78,7 +96,7 @@ export async function loadPlugin(overrides = {}) {
   }
 
   module.apply(ctx, config)
-  return { module, tools, ctx, services, config }
+  return { module, tools, listeners, ctx, services, config }
 }
 
 /** Call one registered tool. */
@@ -97,4 +115,21 @@ export async function callToolExpectingError(tools, name, args = {}) {
     return error.message
   }
   throw new Error(`expected ${name} to throw, but it resolved`)
+}
+
+/**
+ * Drive the `tools/pre-execute` waterfall the way the registry does: listeners
+ * run in registration order and `next()` delegates to the following one,
+ * resolving to `allow` when the chain is exhausted.
+ */
+export async function runPreExecute(listeners, exec) {
+  const chain = listeners.get('tools/pre-execute') ?? []
+  let index = 0
+  const next = async () => {
+    if (index >= chain.length) return { kind: 'allow' }
+    const handler = chain[index]
+    index += 1
+    return handler(exec, next)
+  }
+  return next()
 }
