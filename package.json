@@ -1,0 +1,33 @@
+{
+  "name": "dsh-plugin-github",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Host-only GitHub integration for DeepSeek Harness: repo, pull-request and review tools over the GitHub REST API. The token resolves from the DSH credentials domain, never from the plugin source.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "github"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "cordis.patch.yml"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-credentials": ">=0.2.0-rc.2",
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "license": "MIT"
+}

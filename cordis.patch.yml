@@ -1,0 +1,6 @@
+# dsh-plugin-github bundle layer: mounts this plugin as a row in the composed
+# profile tree. The row id is what later layers (the profile patch) target to
+# override config or disable the plugin.
+- insert:
+    - id: github
+      name: dsh-plugin-github
