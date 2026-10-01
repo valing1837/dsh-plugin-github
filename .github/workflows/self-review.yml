@@ -1,0 +1,30 @@
+# Runs this repository's own action on its own pull requests.
+#
+# It doubles as the action's integration test: the first pull request opened
+# against this repository exercises the composite wiring, the diff fetch, the
+# analysis and the review posting for real.
+#
+# Delete this file if you do not want the action running on this repository.
+name: self-review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write # the action reads the diff and posts the review
+
+jobs:
+  deterministic-review:
+    runs-on: ubuntu-latest
+    steps:
+      # A local (`uses: ./`) action needs the repository checked out first.
+      - uses: actions/checkout@v4
+
+      - uses: ./
+        with:
+          min-severity: warning
+          max-comments: 20
+          post-review: 'true'
+          fail-on: error # a secret, a conflict marker or a focused test fails the check
+          title: Deterministic review
