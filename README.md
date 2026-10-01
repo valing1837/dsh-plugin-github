@@ -76,6 +76,17 @@ refs:
 | `github_get_issue` | 读 issue + 评论线程 |
 | `github_create_issue` | 开 issue |
 | `github_comment` | 在 issue / PR 上留普通评论 |
+| `github_search` | 跨库搜索：issues/PR、repositories、code |
+| `github_get_checks` | 读某个 commit 的 check runs + 合并状态 |
+| `github_set_status` | 发 commit status（审查门禁的原语） |
+| `github_list_branches` | 列分支及各自 head commit |
+| `github_compare` | 比较两个 ref：ahead/behind、commits、改动文件 |
+| `github_update_pull` | 改 PR：标题/正文/base，或用 state 关开 |
+| `github_update_issue` | 改 issue：标题/正文/关开/labels/assignees |
+| `github_put_file` | 通过 contents API 建或改文件（无需克隆即产生 commit） |
+| `github_delete_file` | 通过 contents API 删文件 |
+| `github_list_releases` | 列 release |
+| `github_create_release` | 发版（tag 不存在时自动创建） |
 
 ## 安全设计
 
